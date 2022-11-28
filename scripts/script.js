@@ -46,7 +46,14 @@ const Textures = require("Textures");
   ]);
 
   // Game constants
+  const levels = require("./levels");
+  const gridSize = 0.36;
+  const gridInc = 0.12;
+  const numOfPlatforms = 10;
+  const playerInitY = 0.02;
   const blockSlotInc = 0.1;
+  const initBlockSlot = 0.6;
+  const numOfBlocks = 10;
   const blockInitY = 0.9;
   const states = {
     start: 1,
@@ -56,9 +63,16 @@ const Textures = require("Textures");
   };
 
   // Game variables
+  let currentLevel = 0;
+  let playerDir = levels[currentLevel].facing;
   let commands = [];
   let blocksUsed = 0;
   let currentState = states.start;
+  let nextBlockSlot = initBlockSlot;
+  let exeIntervalID;
+  let allCoordinates = createAllCoordinates();
+  let pathCoordinates = createPathCoordinates();
+  let dangerCoordinates = createDangerCoordinates();
 
   /*------------- Button Taps -------------*/
 
@@ -109,4 +123,43 @@ const Textures = require("Textures");
     });
   });
 
+  function createAllCoordinates() {
+    // Creates a grid of coordinates
+    let coords = [];
+    for (let i = -gridSize; i <= gridSize; i += gridInc) {
+      for (let j = -gridSize; j <= gridSize; j += gridInc) {
+        let x = Math.round(i * 1e4) / 1e4;
+        let z = Math.round(j * 1e4) / 1e4;
+        coords.push([x, z]);
+      }
+    }
+    return coords;
+  }
+
+  function createPathCoordinates() {
+    // Get the current level path coordinates from all the coordinates
+    let path = levels[currentLevel].path;
+    let coords = [];
+    for (let i = 0; i < path.length; i++) {
+      let x = allCoordinates[path[i][0]][1];
+      let z = allCoordinates[path[i][1]][1];
+      coords.push([x, z]);
+    }
+    return coords;
+  }
+
+  function createDangerCoordinates() {
+    // Get the danger coordinates by removing the current path coordinates
+    let coords = allCoordinates;
+    for (let i = 0; i < pathCoordinates.length; i++) {
+      for (let j = 0; j < coords.length; j++) {
+        let lvlCoordStr = JSON.stringify(pathCoordinates[i]);
+        let genCoordStr = JSON.stringify(coords[j]);
+        if (lvlCoordStr === genCoordStr) {
+          coords.splice(j, 1);
+        }
+      }
+    }
+    return coords;
+  }
 })();

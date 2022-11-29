@@ -10,3 +10,14 @@
 - Setting up the project
 - Setting up the scene in Spark AR Studio
 - Adding files and assets to the projects
+
+## Day 3 (28th November)
+
+- Added game UI and button actions
+- Added player movements
+- Added grid coordinates
+
+## Day 4 (29th November)
+
+- Added game logic
+- Added player animation

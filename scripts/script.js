@@ -5,6 +5,7 @@ const TouchGestures = require("TouchGestures");
 const Materials = require("Materials");
 const Time = require("Time");
 const Textures = require("Textures");
+const Animation = require("Animation");
 const Reactive = require("Reactive");
 
 (async function () {
@@ -124,6 +125,54 @@ const Reactive = require("Reactive");
     });
   });
 
+  /*------------- Monitor Player Position -------------*/
+
+  Reactive.monitorMany({
+    x: bunny.transform.x,
+    z: bunny.transform.z,
+  }).subscribe(({ newValues }) => {
+    let playerX = newValues.x;
+    let playerZ = newValues.z;
+    let goalX = pathCoordinates[pathCoordinates.length - 1][0];
+    let goalZ = pathCoordinates[pathCoordinates.length - 1][1];
+    let collisionArea = 0.005;
+
+    // Check if player is on the goal
+    if (
+      isBetween(playerX, goalX + collisionArea, goalX - collisionArea) &&
+      isBetween(playerZ, goalZ + collisionArea, goalZ - collisionArea)
+    ) {
+      bunny.transform.x = goalX;
+      bunny.transform.z = goalZ;
+      commands = [];
+      Time.clearInterval(exeIntervalID);
+      changeState(states.complete, "btn_next");
+      carrot.hidden = true;
+      animateLevelComplete();
+      completeSound.setPlaying(true);
+      completeSound.reset();
+    }
+
+    // Check if player is on a danger zone
+    for (let i = 0; i < dangerCoordinates.length; i++) {
+      let dx = dangerCoordinates[i][0];
+      let dz = dangerCoordinates[i][1];
+      if (
+        isBetween(playerX, dx + collisionArea, dx - collisionArea) &&
+        isBetween(playerZ, dz + collisionArea, dz - collisionArea)
+      ) {
+        bunny.transform.x = dx;
+        bunny.transform.z = dz;
+        commands = [];
+        Time.clearInterval(exeIntervalID);
+        changeState(states.failed, "btn_retry");
+        animatePlayerFall();
+        dropSound.setPlaying(true);
+        dropSound.reset();
+      }
+    }
+  });
+
   function createAllCoordinates() {
     // Creates a grid of coordinates
     let coords = [];
@@ -185,6 +234,270 @@ const Reactive = require("Reactive");
         clickSound.reset();
       }
     }
+  }
+
+  /*------------- Execution functions -------------*/
+
+  function executeCommands() {
+    currentState = states.running;
+    let executionCommands = [];
+    for (let i = 0; i < commands.length; i++) {
+      executionCommands.push(commands[i].command);
+    }
+    setExecutionInterval(
+      function (e) {
+        animatePlayerMovement(executionCommands[e]);
+      },
+      1000,
+      executionCommands.length
+    );
+  }
+
+  function setExecutionInterval(callback, delay, repetitions) {
+    let e = 0;
+    callback(0);
+    exeIntervalID = Time.setInterval(function () {
+      callback(e + 1);
+      if (++e === repetitions) {
+        Time.clearInterval(exeIntervalID);
+        if (currentState === states.running) currentState = states.uncomplete;
+        setTexture("btn_retry");
+        failSound.setPlaying(true);
+        failSound.reset();
+      }
+    }, delay);
+  }
+
+  /*------------- Rabbit Movement Animation -------------*/
+
+  function animatePlayerMovement(command) {
+    const timeDriverParameters = {
+      durationMilliseconds: 400,
+      loopCount: 1,
+      mirror: false,
+    };
+
+    const timeDriver = Animation.timeDriver(timeDriverParameters);
+    const translationNegX = Animation.animate(
+      timeDriver,
+      Animation.samplers.linear(
+        bunny.transform.x.pinLastValue(),
+        bunny.transform.x.pinLastValue() - gridInc
+      )
+    );
+
+    const translationPosX = Animation.animate(
+      timeDriver,
+      Animation.samplers.linear(
+        bunny.transform.x.pinLastValue(),
+        bunny.transform.x.pinLastValue() + gridInc
+      )
+    );
+
+    const translationNegZ = Animation.animate(
+      timeDriver,
+      Animation.samplers.linear(
+        bunny.transform.z.pinLastValue(),
+        bunny.transform.z.pinLastValue() - gridInc
+      )
+    );
+
+    const translationPosZ = Animation.animate(
+      timeDriver,
+      Animation.samplers.linear(
+        bunny.transform.z.pinLastValue(),
+        bunny.transform.z.pinLastValue() + gridInc
+      )
+    );
+
+    const rotationLeft = Animation.animate(
+      timeDriver,
+      Animation.samplers.linear(
+        bunny.transform.rotationY.pinLastValue(),
+        bunny.transform.rotationY.pinLastValue() + degreesToRadians(90)
+      )
+    );
+
+    const rotationRight = Animation.animate(
+      timeDriver,
+      Animation.samplers.linear(
+        bunny.transform.rotationY.pinLastValue(),
+        bunny.transform.rotationY.pinLastValue() - degreesToRadians(90)
+      )
+    );
+
+    const jump = Animation.animate(
+      timeDriver,
+      Animation.samplers.sequence({
+        samplers: [
+          Animation.samplers.easeInOutSine(playerInitY, 0.1),
+          Animation.samplers.easeInOutSine(0.1, playerInitY),
+        ],
+        knots: [0, 1, 2],
+      })
+    );
+
+    timeDriver.start();
+
+    switch (command) {
+      case "forward":
+        bunny.transform.y = jump;
+        jumpSound.setPlaying(true);
+        jumpSound.reset();
+        if (playerDir === "east") {
+          bunny.transform.x = translationPosX;
+        } else if (playerDir === "north") {
+          bunny.transform.z = translationNegZ;
+        } else if (playerDir === "west") {
+          bunny.transform.x = translationNegX;
+        } else if (playerDir === "south") {
+          bunny.transform.z = translationPosZ;
+        }
+        break;
+      case "left":
+        if (playerDir === "east") {
+          playerDir = "north";
+        } else if (playerDir === "north") {
+          playerDir = "west";
+        } else if (playerDir === "west") {
+          playerDir = "south";
+        } else if (playerDir === "south") {
+          playerDir = "east";
+        }
+        bunny.transform.rotationY = rotationLeft;
+        break;
+      case "right":
+        if (playerDir === "east") {
+          playerDir = "south";
+        } else if (playerDir === "south") {
+          playerDir = "west";
+        } else if (playerDir === "west") {
+          playerDir = "north";
+        } else if (playerDir === "north") {
+          playerDir = "east";
+        }
+        bunny.transform.rotationY = rotationRight;
+        break;
+    }
+  }
+
+  /*------------- Player Idle Animation -------------*/
+
+  function animatePlayerIdle() {
+    const timeDriverParameters = {
+      durationMilliseconds: 400,
+      loopCount: Infinity,
+      mirror: true,
+    };
+    const timeDriver = Animation.timeDriver(timeDriverParameters);
+
+    const scale = Animation.animate(
+      timeDriver,
+      Animation.samplers.linear(
+        bunny.transform.scaleY.pinLastValue(),
+        bunny.transform.scaleY.pinLastValue() + 0.02
+      )
+    );
+
+    bunny.transform.scaleY = scale;
+
+    timeDriver.start();
+  }
+
+  animatePlayerIdle();
+
+  /*------------- Level Complete Animation -------------*/
+
+  function animateLevelComplete() {
+    const timeDriverParameters = {
+      durationMilliseconds: 450,
+      loopCount: 2,
+      mirror: false,
+    };
+
+    const timeDriver = Animation.timeDriver(timeDriverParameters);
+
+    const jump = Animation.animate(
+      timeDriver,
+      Animation.samplers.sequence({
+        samplers: [
+          Animation.samplers.easeInOutSine(playerInitY, 0.1),
+          Animation.samplers.easeInOutSine(0.1, playerInitY),
+        ],
+        knots: [0, 1, 2],
+      })
+    );
+
+    bunny.transform.y = jump;
+
+    timeDriver.start();
+  }
+
+  /*------------- Player Fall Animation -------------*/
+
+  function animatePlayerFall() {
+    emmitWaterParticles();
+    const timeDriverParameters = {
+      durationMilliseconds: 100,
+      loopCount: 1,
+      mirror: false,
+    };
+
+    const timeDriver = Animation.timeDriver(timeDriverParameters);
+
+    const moveY = Animation.animate(
+      timeDriver,
+      Animation.samplers.easeInOutSine(playerInitY - 0.1, -0.17)
+    );
+
+    bunny.transform.y = moveY;
+
+    timeDriver.start();
+
+    Time.setTimeout(function () {
+      bunny.hidden = true;
+    }, 200);
+  }
+
+  /*------------- Carrot Spin Animation -------------*/
+
+  function animateCarrot() {
+    const timeDriverParameters = {
+      durationMilliseconds: 2500,
+      loopCount: Infinity,
+      mirror: false,
+    };
+
+    const timeDriver = Animation.timeDriver(timeDriverParameters);
+
+    const rotate = Animation.animate(
+      timeDriver,
+      Animation.samplers.linear(
+        carrot.transform.rotationY.pinLastValue(),
+        carrot.transform.rotationY.pinLastValue() - degreesToRadians(360)
+      )
+    );
+
+    carrot.transform.rotationY = rotate;
+
+    timeDriver.start();
+  }
+
+  animateCarrot();
+
+  /*------------- Water Splash Animation -------------*/
+
+  function emmitWaterParticles() {
+    const sizeSampler = Animation.samplers.easeInQuad(0.015, 0.007);
+    waterEmitter.transform.x = bunny.transform.x;
+    waterEmitter.transform.z = bunny.transform.z;
+    waterEmitter.birthrate = 500;
+    waterEmitter.sizeModifier = sizeSampler;
+
+    Time.setTimeout(function () {
+      bunny.hidden = true;
+      waterEmitter.birthrate = 0;
+    }, 200);
   }
 
   /*------------- Initialize current level -------------*/
@@ -289,5 +602,15 @@ const Reactive = require("Reactive");
       }
     }
   }
-  
+
+  function isBetween(n, a, b) {
+    return (n - a) * (n - b) <= 0;
+  }
+
+  function changeState(state, buttonText) {
+    Time.setTimeout(function () {
+      currentState = state;
+      setTexture(buttonText);
+    }, 500);
+  }
 })();

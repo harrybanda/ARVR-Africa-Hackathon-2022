@@ -21,3 +21,6 @@
 
 - Added game logic
 - Added player animation
+- Updated 3D and 2D assets
+
+## Day 5 (30th November)

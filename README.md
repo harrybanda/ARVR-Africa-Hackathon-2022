@@ -24,3 +24,7 @@
 - Updated 3D and 2D assets
 
 ## Day 5 (30th November)
+
+- Added loop logic
+- Added switch logic
+- Added more levels

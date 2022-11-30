@@ -28,3 +28,4 @@
 - Added loop logic
 - Added switch logic
 - Added more levels
+- Added more 3D art

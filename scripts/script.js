@@ -457,15 +457,15 @@ const CameraInfo = require("CameraInfo");
 
     Time.setTimeout(function () {
       if (currentLevel === 0) {
-        setTexture("in_0", "instructions_mat");
+        setTexture("in_0", "instructions");
         if (!isFirstRun) {
           animateInstructionsViewShow();
         }
       } else if (currentLevel === 3) {
-        setTexture("in_1", "instructions_mat");
+        setTexture("in_1", "instructions");
         animateInstructionsViewShow();
       } else if (currentLevel === 5) {
-        setTexture("in_2", "instructions_mat");
+        setTexture("in_2", "instructions");
         animateInstructionsViewShow();
       }
     }, 1000);
